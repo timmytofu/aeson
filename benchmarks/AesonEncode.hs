@@ -3,7 +3,11 @@
 import Control.Exception
 import Control.Monad
 import Data.Aeson
+<<<<<<< HEAD
 import Data.Attoparsec (IResult(..), parseWith)
+=======
+import Data.Attoparsec.ByteString (IResult(..), parseWith)
+>>>>>>> upstream/master
 import Data.Char (isDigit)
 import Data.Time.Clock
 import System.Environment (getArgs)

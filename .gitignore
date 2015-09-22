@@ -4,6 +4,10 @@ cabal.sandbox.config
 
 *.o
 *.hi
+<<<<<<< HEAD
+=======
+*.nix
+>>>>>>> upstream/master
 
 benchmarks/AesonEncode
 

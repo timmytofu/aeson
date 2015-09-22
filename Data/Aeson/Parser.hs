@@ -2,7 +2,11 @@
 
 -- |
 -- Module:      Data.Aeson.Parser
+<<<<<<< HEAD
 -- Copyright:   (c) 2012 Bryan O'Sullivan
+=======
+-- Copyright:   (c) 2012-2015 Bryan O'Sullivan
+>>>>>>> upstream/master
 --              (c) 2011 MailRank, Inc.
 -- License:     Apache
 -- Maintainer:  Bryan O'Sullivan <bos@serpentine.com>

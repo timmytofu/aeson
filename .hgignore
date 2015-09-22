@@ -1,6 +1,10 @@
 .*\.(?:aux|h[ip]|o|orig|out|pdf|prof|ps|rej)$
 ^(?:dist|\.DS_Store)$
+<<<<<<< HEAD
 ^benchmarks/dist$
+=======
+^(?:benchmarks|examples)/dist$
+>>>>>>> upstream/master
 ^tests/(?:qc)
 
 syntax: glob

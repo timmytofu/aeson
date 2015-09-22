@@ -1,8 +1,14 @@
+<<<<<<< HEAD
 {-# LANGUAGE CPP #-}
 
 -- |
 -- Module:      Data.Aeson.Types
 -- Copyright:   (c) 2011, 2012 Bryan O'Sullivan
+=======
+-- |
+-- Module:      Data.Aeson.Types
+-- Copyright:   (c) 2011-2015 Bryan O'Sullivan
+>>>>>>> upstream/master
 --              (c) 2011 MailRank, Inc.
 -- License:     Apache
 -- Maintainer:  Bryan O'Sullivan <bos@serpentine.com>
@@ -15,6 +21,12 @@ module Data.Aeson.Types
     (
     -- * Core JSON types
       Value(..)
+<<<<<<< HEAD
+=======
+    , Encoding
+    , fromEncoding
+    , Series
+>>>>>>> upstream/master
     , Array
     , emptyArray
     , Pair
@@ -32,15 +44,26 @@ module Data.Aeson.Types
     , parseEither
     , parseMaybe
     , ToJSON(..)
+<<<<<<< HEAD
     , modifyFailure
 
 #ifdef GENERICS
+=======
+    , KeyValue(..)
+    , modifyFailure
+
+>>>>>>> upstream/master
     -- ** Generic JSON classes
     , GFromJSON(..)
     , GToJSON(..)
     , genericToJSON
+<<<<<<< HEAD
     , genericParseJSON
 #endif
+=======
+    , genericToEncoding
+    , genericParseJSON
+>>>>>>> upstream/master
 
     -- * Inspecting @'Value's@
     , withObject
@@ -50,8 +73,13 @@ module Data.Aeson.Types
     , withScientific
     , withBool
 
+<<<<<<< HEAD
     -- * Constructors and accessors
     , (.=)
+=======
+    , pairs
+    , foldable
+>>>>>>> upstream/master
     , (.:)
     , (.:?)
     , (.!=)
@@ -61,13 +89,24 @@ module Data.Aeson.Types
     , Options(..)
     , SumEncoding(..)
     , camelTo
+<<<<<<< HEAD
+=======
+    , camelTo2
+>>>>>>> upstream/master
     , defaultOptions
     , defaultTaggedObject
     ) where
 
+<<<<<<< HEAD
 import Data.Aeson.Types.Instances
 import Data.Aeson.Types.Internal
 
 #ifdef GENERICS
 import Data.Aeson.Types.Generic ()
 #endif
+=======
+import Data.Aeson.Encode.Functions (foldable, pairs)
+import Data.Aeson.Types.Generic ()
+import Data.Aeson.Types.Instances
+import Data.Aeson.Types.Internal
+>>>>>>> upstream/master
