@@ -4,7 +4,11 @@
 
 {-|
 Module:      Data.Aeson.TH
+<<<<<<< HEAD
 Copyright:   (c) 2011, 2012 Bryan O'Sullivan
+=======
+Copyright:   (c) 2011-2015 Bryan O'Sullivan
+>>>>>>> upstream/master
              (c) 2011 MailRank, Inc.
 License:     Apache
 Stability:   experimental
@@ -49,6 +53,23 @@ d = Record { testOne = 3.14159
 >>> fromJSON (toJSON d) == Success d
 > True
 
+<<<<<<< HEAD
+=======
+This also works for data family instances, but instead of passing in the data
+family name (with double quotes), we pass in a data family instance
+constructor (with a single quote):
+
+@
+data family DF a
+data instance DF Int = DF1 Int
+                     | DF2 Int Int
+                     deriving Eq
+
+$('deriveJSON' 'defaultOptions' 'DF1)
+-- Alternatively, one could pass 'DF2 instead
+@
+
+>>>>>>> upstream/master
 Please note that you can derive instances for tuples using the following syntax:
 
 @
@@ -69,6 +90,7 @@ module Data.Aeson.TH
     , deriveFromJSON
 
     , mkToJSON
+<<<<<<< HEAD
     , mkParseJSON
     ) where
 
@@ -79,6 +101,16 @@ module Data.Aeson.TH
 -- from aeson:
 import Data.Aeson ( toJSON, Object, object, (.=), (.:), (.:?)
                   , ToJSON, toJSON
+=======
+    , mkToEncoding
+    , mkParseJSON
+    ) where
+
+import Control.Applicative ( pure, (<$>), (<*>) )
+import Control.Monad       ( return, mapM, liftM2, fail )
+import Data.Aeson ( toJSON, Object, (.=), (.:), (.:?)
+                  , ToJSON, toEncoding, toJSON
+>>>>>>> upstream/master
                   , FromJSON, parseJSON
                   )
 import Data.Aeson.Types ( Value(..), Parser
@@ -87,6 +119,7 @@ import Data.Aeson.Types ( Value(..), Parser
                         , defaultOptions
                         , defaultTaggedObject
                         )
+<<<<<<< HEAD
 -- from base:
 import Control.Applicative ( pure, (<$>), (<*>) )
 import Control.Monad       ( return, mapM, liftM2, fail )
@@ -111,6 +144,40 @@ import Language.Haskell.TH.Syntax ( VarStrictType )
 -- from text:
 import qualified Data.Text as T ( Text, pack, unpack )
 -- from vector:
+=======
+import Data.Aeson.Types.Internal (Encoding(..))
+import Control.Monad       ( return, mapM, liftM2, fail, join )
+import Data.Bool           ( Bool(False, True), otherwise, (&&), not )
+import Data.Either         ( Either(Left, Right) )
+import Data.Eq             ( (==) )
+import Data.Function       ( ($), (.), flip )
+import Data.Functor        ( fmap )
+import Data.Int            ( Int )
+import Data.List           ( (++), all, any, filter, find, foldl, foldl'
+                           , genericLength , intercalate , intersperse, length, map
+                           , partition, zip
+                           )
+import Data.Maybe          ( Maybe(Nothing, Just), catMaybes )
+import Data.Monoid         ( (<>), mconcat )
+import Language.Haskell.TH
+import Language.Haskell.TH.Syntax ( VarStrictType )
+import Prelude             ( String, (-), Integer, error, foldr1, fromIntegral
+                           , snd, uncurry
+                           )
+#if MIN_VERSION_template_haskell(2,8,0) && __GLASGOW_HASKELL__ < 710
+import Prelude             ( drop )
+#endif
+import Text.Printf         ( printf )
+import Text.Show           ( show )
+import qualified Data.Aeson as A
+import qualified Data.Aeson.Encode.Builder as E
+import qualified Data.Aeson.Encode.Functions as E
+import qualified Data.HashMap.Strict as H ( lookup, toList )
+#if MIN_VERSION_template_haskell(2,8,0) && __GLASGOW_HASKELL__ < 710
+import qualified Data.Set as Set ( Set, empty, singleton, size, union, unions )
+#endif
+import qualified Data.Text as T ( Text, pack, unpack )
+>>>>>>> upstream/master
 import qualified Data.Vector as V ( unsafeIndex, null, length, create, fromList )
 import qualified Data.Vector.Mutable as VM ( unsafeNew, unsafeWrite )
 
@@ -120,7 +187,11 @@ import qualified Data.Vector.Mutable as VM ( unsafeNew, unsafeWrite )
 --------------------------------------------------------------------------------
 
 -- | Generates both 'ToJSON' and 'FromJSON' instance declarations for the given
+<<<<<<< HEAD
 -- data type.
+=======
+-- data type or data family instance constructor.
+>>>>>>> upstream/master
 --
 -- This is a convienience function which is equivalent to calling both
 -- 'deriveToJSON' and 'deriveFromJSON'.
@@ -149,7 +220,12 @@ instance (ToJSON a) ⇒ ToJSON Foo where ...
 The above (ToJSON a) constraint is not necessary and perhaps undesirable.
 -}
 
+<<<<<<< HEAD
 -- | Generates a 'ToJSON' instance declaration for the given data type.
+=======
+-- | Generates a 'ToJSON' instance declaration for the given data type or
+-- data family instance constructor.
+>>>>>>> upstream/master
 deriveToJSON :: Options
              -- ^ Encoding options.
              -> Name
@@ -157,6 +233,7 @@ deriveToJSON :: Options
              -- declaration.
              -> Q [Dec]
 deriveToJSON opts name =
+<<<<<<< HEAD
     withType name $ \tvbs cons -> fmap (:[]) $ fromCons tvbs cons
   where
     fromCons :: [TyVarBndr] -> [Con] -> Q Dec
@@ -166,10 +243,27 @@ deriveToJSON opts name =
                   [ funD 'toJSON
                          [ clause []
                                   (normalB $ consToJSON opts cons)
+=======
+    withType name $ \name' tvbs cons mbTys -> fmap (:[]) $ fromCons name' tvbs cons mbTys
+  where
+    fromCons :: Name -> [TyVarBndr] -> [Con] -> Maybe [Type] -> Q Dec
+    fromCons name' tvbs cons mbTys =
+        instanceD instanceCxt
+                  instanceType
+                  [ funD 'toJSON
+                         [ clause []
+                                  (normalB $ consToValue opts cons)
+                                  []
+                         ]
+                  , funD 'toEncoding
+                         [ clause []
+                                  (normalB $ consToEncoding opts cons)
+>>>>>>> upstream/master
                                   []
                          ]
                   ]
       where
+<<<<<<< HEAD
         classType = conT ''ToJSON
         typeNames = map tvbName tvbs
         instanceType = foldl' appT (conT name) $ map varT typeNames
@@ -184,21 +278,56 @@ mkToJSON opts name = withType name (\_ cons -> consToJSON opts cons)
 -- to generate the JSON encoding of a number of constructors. All constructors
 -- must be from the same type.
 consToJSON :: Options
+=======
+        (instanceCxt, instanceType) =
+            buildTypeInstance name' ''ToJSON tvbs mbTys
+
+-- | Generates a lambda expression which encodes the given data type or
+-- data family instance constructor as a 'Value'.
+mkToJSON :: Options -- ^ Encoding options.
+         -> Name -- ^ Name of the type to encode.
+         -> Q Exp
+mkToJSON opts name = withType name (\_ _ cons _ -> consToValue opts cons)
+
+-- | Generates a lambda expression which encodes the given data type or
+-- data family instance constructor as a JSON string.
+mkToEncoding :: Options -- ^ Encoding options.
+             -> Name -- ^ Name of the type to encode.
+             -> Q Exp
+mkToEncoding opts name = withType name (\_ _ cons _ -> consToEncoding opts cons)
+
+-- | Helper function used by both 'deriveToJSON' and 'mkToJSON'. Generates
+-- code to generate a 'Value' of a number of constructors. All constructors
+-- must be from the same type.
+consToValue :: Options
+>>>>>>> upstream/master
            -- ^ Encoding options.
            -> [Con]
            -- ^ Constructors for which to generate JSON generating code.
            -> Q Exp
 
+<<<<<<< HEAD
 consToJSON _ [] = error $ "Data.Aeson.TH.consToJSON: "
+=======
+consToValue _ [] = error $ "Data.Aeson.TH.consToValue: "
+>>>>>>> upstream/master
                           ++ "Not a single constructor given!"
 
 -- A single constructor is directly encoded. The constructor itself may be
 -- forgotten.
+<<<<<<< HEAD
 consToJSON opts [con] = do
     value <- newName "value"
     lam1E (varP value) $ caseE (varE value) [encodeArgs opts False con]
 
 consToJSON opts cons = do
+=======
+consToValue opts [con] = do
+    value <- newName "value"
+    lam1E (varP value) $ caseE (varE value) [argsToValue opts False con]
+
+consToValue opts cons = do
+>>>>>>> upstream/master
     value <- newName "value"
     lam1E (varP value) $ caseE (varE value) matches
   where
@@ -208,7 +337,11 @@ consToJSON opts cons = do
               | con <- cons
               , let conName = getConName con
               ]
+<<<<<<< HEAD
         | otherwise = [encodeArgs opts True con | con <- cons]
+=======
+        | otherwise = [argsToValue opts True con | con <- cons]
+>>>>>>> upstream/master
 
 conStr :: Options -> Name -> Q Exp
 conStr opts = appE [|String|] . conTxt opts
@@ -219,30 +352,83 @@ conTxt opts = appE [|T.pack|] . conStringE opts
 conStringE :: Options -> Name -> Q Exp
 conStringE opts = stringE . constructorTagModifier opts . nameBase
 
+<<<<<<< HEAD
+=======
+-- | Helper function used by both 'deriveToJSON' and 'mkToEncoding'. Generates
+-- code to write out a value for a number of constructors. All constructors
+-- must be from the same type.
+consToEncoding :: Options
+                  -- ^ Encoding options.
+               -> [Con]
+               -- ^ Constructors for which to generate JSON generating code.
+               -> Q Exp
+
+consToEncoding _ [] = error $ "Data.Aeson.TH.consToEncoding: "
+                      ++ "Not a single constructor given!"
+
+-- A single constructor is directly encoded. The constructor itself may be
+-- forgotten.
+consToEncoding opts [con] = do
+    value <- newName "value"
+    lam1E (varP value) $ caseE (varE value) [argsToEncoding opts False con]
+
+-- Encode just the name of the constructor of a sum type iff all the
+-- constructors are nullary.
+consToEncoding opts cons = do
+    value <- newName "value"
+    lam1E (varP value) $ caseE (varE value) matches
+  where
+    matches
+        | allNullaryToStringTag opts && all isNullary cons =
+              [ match (conP conName [])
+                (normalB $ [|Encoding|] `appE` encStr opts conName) []
+              | con <- cons
+              , let conName = getConName con
+              ]
+        | otherwise = [argsToEncoding opts True con | con <- cons]
+
+encStr :: Options -> Name -> Q Exp
+encStr opts = appE [|E.text|] . conTxt opts
+
+>>>>>>> upstream/master
 -- | If constructor is nullary.
 isNullary :: Con -> Bool
 isNullary (NormalC _ []) = True
 isNullary _ = False
 
+<<<<<<< HEAD
 encodeSum :: Options -> Bool -> Name -> Q Exp -> Q Exp
 encodeSum opts multiCons conName exp
+=======
+sumToValue :: Options -> Bool -> Name -> Q Exp -> Q Exp
+sumToValue opts multiCons conName exp
+>>>>>>> upstream/master
     | multiCons =
         case sumEncoding opts of
           TwoElemArray ->
               [|Array|] `appE` ([|V.fromList|] `appE` listE [conStr opts conName, exp])
           TaggedObject{tagFieldName, contentsFieldName} ->
+<<<<<<< HEAD
               [|object|] `appE` listE
+=======
+              [|A.object|] `appE` listE
+>>>>>>> upstream/master
                 [ infixApp [|T.pack tagFieldName|]     [|(.=)|] (conStr opts conName)
                 , infixApp [|T.pack contentsFieldName|] [|(.=)|] exp
                 ]
           ObjectWithSingleField ->
+<<<<<<< HEAD
               [|object|] `appE` listE
+=======
+              [|A.object|] `appE` listE
+>>>>>>> upstream/master
                 [ infixApp (conTxt opts conName) [|(.=)|] exp
                 ]
 
     | otherwise = exp
 
 -- | Generates code to generate the JSON encoding of a single constructor.
+<<<<<<< HEAD
 encodeArgs :: Options -> Bool -> Con -> Q Match
 -- Nullary constructors. Generates code that explicitly matches against the
 -- constructor even though it doesn't contain data. This is useful to prevent
@@ -254,6 +440,19 @@ encodeArgs  opts multiCons (NormalC conName []) =
 
 -- Polyadic constructors with special case for unary constructors.
 encodeArgs opts multiCons (NormalC conName ts) = do
+=======
+argsToValue :: Options -> Bool -> Con -> Q Match
+-- Nullary constructors. Generates code that explicitly matches against the
+-- constructor even though it doesn't contain data. This is useful to prevent
+-- type errors.
+argsToValue  opts multiCons (NormalC conName []) =
+    match (conP conName [])
+          (normalB (sumToValue opts multiCons conName [e|toJSON ([] :: [()])|]))
+          []
+
+-- Polyadic constructors with special case for unary constructors.
+argsToValue opts multiCons (NormalC conName ts) = do
+>>>>>>> upstream/master
     let len = length ts
     args <- mapM newName ["arg" ++ show n | n <- [1..len]]
     js <- case [[|toJSON|] `appE` varE arg | arg <- args] of
@@ -277,6 +476,7 @@ encodeArgs opts multiCons (NormalC conName ts) = do
                          (varE 'V.create `appE`
                            doE (newMV:stmts++[ret]))
     match (conP conName $ map varP args)
+<<<<<<< HEAD
           (normalB $ encodeSum opts multiCons conName js)
           []
 
@@ -284,6 +484,17 @@ encodeArgs opts multiCons (NormalC conName ts) = do
 encodeArgs opts multiCons (RecC conName ts) = do
     args <- mapM newName ["arg" ++ show n | (_, n) <- zip ts [1 :: Integer ..]]
     let exp = [|object|] `appE` pairs
+=======
+          (normalB $ sumToValue opts multiCons conName js)
+          []
+
+-- Records.
+argsToValue opts multiCons (RecC conName ts) = case (unwrapUnaryRecords opts, not multiCons, ts) of
+  (True,True,[(_,st,ty)]) -> argsToValue opts multiCons (NormalC conName [(st,ty)])
+  _ -> do
+    args <- mapM newName ["arg" ++ show n | (_, n) <- zip ts [1 :: Integer ..]]
+    let exp = [|A.object|] `appE` pairs
+>>>>>>> upstream/master
 
         pairs | omitNothingFields opts = infixApp maybeFields
                                                   [|(++)|]
@@ -298,9 +509,12 @@ encodeArgs opts multiCons (RecC conName ts) = do
 
         (maybes, rest) = partition isMaybe argCons
 
+<<<<<<< HEAD
         isMaybe (_, (_, _, AppT (ConT t) _)) = t == ''Maybe
         isMaybe _ = False
 
+=======
+>>>>>>> upstream/master
         maybeToPair (arg, (field, _, _)) =
             infixApp (infixE (Just $ toFieldName field)
                              [|(.=)|]
@@ -321,7 +535,11 @@ encodeArgs opts multiCons (RecC conName ts) = do
             then case sumEncoding opts of
                    TwoElemArray -> [|toJSON|] `appE` tupE [conStr opts conName, exp]
                    TaggedObject{tagFieldName} ->
+<<<<<<< HEAD
                        [|object|] `appE`
+=======
+                       [|A.object|] `appE`
+>>>>>>> upstream/master
                          -- TODO: Maybe throw an error in case
                          -- tagFieldName overwrites a field in pairs.
                          infixApp (infixApp [|T.pack tagFieldName|]
@@ -330,33 +548,184 @@ encodeArgs opts multiCons (RecC conName ts) = do
                                   [|(:)|]
                                   pairs
                    ObjectWithSingleField ->
+<<<<<<< HEAD
                        [|object|] `appE` listE
+=======
+                       [|A.object|] `appE` listE
+>>>>>>> upstream/master
                          [ infixApp (conTxt opts conName) [|(.=)|] exp ]
             else exp
           ) []
 
 -- Infix constructors.
+<<<<<<< HEAD
 encodeArgs opts multiCons (InfixC _ conName _) = do
+=======
+argsToValue opts multiCons (InfixC _ conName _) = do
+>>>>>>> upstream/master
     al <- newName "argL"
     ar <- newName "argR"
     match (infixP (varP al) conName (varP ar))
           ( normalB
+<<<<<<< HEAD
           $ encodeSum opts multiCons conName
+=======
+          $ sumToValue opts multiCons conName
+>>>>>>> upstream/master
           $ [|toJSON|] `appE` listE [ [|toJSON|] `appE` varE a
                                     | a <- [al,ar]
                                     ]
           )
           []
 -- Existentially quantified constructors.
+<<<<<<< HEAD
 encodeArgs opts multiCons (ForallC _ _ con) =
     encodeArgs opts multiCons con
+=======
+argsToValue opts multiCons (ForallC _ _ con) =
+    argsToValue opts multiCons con
+
+isMaybe :: (a, (b, c, Type)) -> Bool
+isMaybe (_, (_, _, AppT (ConT t) _)) = t == ''Maybe
+isMaybe _                            = False
+
+(<^>) :: ExpQ -> ExpQ -> ExpQ
+(<^>) a b = infixApp a [|(<>)|] b
+infixr 6 <^>
+
+(<:>) :: ExpQ -> ExpQ -> ExpQ
+(<:>) a b = a <^> [|E.char7 ':'|] <^> b
+infixr 5 <:>
+
+(<%>) :: ExpQ -> ExpQ -> ExpQ
+(<%>) a b = a <^> [|E.char7 ','|] <^> b
+infixr 4 <%>
+
+array :: ExpQ -> ExpQ
+array exp = [|Encoding|] `appE` ([|E.char7 '['|] <^> exp <^> [|E.char7 ']'|])
+
+object :: ExpQ -> ExpQ
+object exp = [|Encoding|] `appE` ([|E.char7 '{'|] <^> exp <^> [|E.char7 '}'|])
+
+sumToEncoding :: Options -> Bool -> Name -> Q Exp -> Q Exp
+sumToEncoding opts multiCons conName exp
+    | multiCons =
+        let fexp = [|fromEncoding|] `appE` exp in
+        case sumEncoding opts of
+          TwoElemArray ->
+            array (encStr opts conName <%> fexp)
+          TaggedObject{tagFieldName, contentsFieldName} ->
+            object $
+            ([|E.text (T.pack tagFieldName)|] <:> encStr opts conName) <%>
+            ([|E.text (T.pack contentsFieldName)|] <:> fexp)
+          ObjectWithSingleField ->
+            object (encStr opts conName <:> fexp)
+
+    | otherwise = exp
+
+-- | Generates code to generate the JSON encoding of a single constructor.
+argsToEncoding :: Options -> Bool -> Con -> Q Match
+-- Nullary constructors. Generates code that explicitly matches against the
+-- constructor even though it doesn't contain data. This is useful to prevent
+-- type errors.
+argsToEncoding  opts multiCons (NormalC conName []) =
+    match (conP conName [])
+          (normalB (sumToEncoding opts multiCons conName [e|toEncoding ([] :: [()])|]))
+          []
+
+-- Polyadic constructors with special case for unary constructors.
+argsToEncoding opts multiCons (NormalC conName ts) = do
+    let len = length ts
+    args <- mapM newName ["arg" ++ show n | n <- [1..len]]
+    js <- case args of
+            -- Single argument is directly converted.
+            [e] -> return ([|toEncoding|] `appE` varE e)
+            -- Multiple arguments are converted to a JSON array.
+            es  ->
+              return (array (foldr1 (<%>) [[|E.builder|] `appE` varE x | x <- es]))
+    match (conP conName $ map varP args)
+          (normalB $ sumToEncoding opts multiCons conName js)
+          []
+
+-- Records.
+argsToEncoding opts multiCons (RecC conName ts) = case (unwrapUnaryRecords opts, not multiCons, ts) of
+  (True,True,[(_,st,ty)]) -> argsToEncoding opts multiCons (NormalC conName [(st,ty)])
+  _ -> do
+    args <- mapM newName ["arg" ++ show n | (_, n) <- zip ts [1 :: Integer ..]]
+
+    let exp = object objBody
+
+        objBody = [|mconcat|] `appE`
+                  ([|intersperse (E.char7 ',')|] `appE` pairs)
+        pairs | omitNothingFields opts = infixApp maybeFields
+                                                  [|(<>)|]
+                                                  restFields
+              | otherwise = listE (map toPair argCons)
+
+        argCons = zip args ts
+
+        maybeFields = [|catMaybes|] `appE` listE (map maybeToPair maybes)
+
+        restFields = listE (map toPair rest)
+
+        (maybes, rest) = partition isMaybe argCons
+
+        maybeToPair (arg, (field, _, _)) =
+            infixApp (infixE (Just $ toFieldName field)
+                             [|(.=)|]
+                             Nothing)
+                     [|(<$>)|]
+                     (varE arg)
+
+        toPair (arg, (field, _, _)) =
+          toFieldName field <:> [|E.builder|] `appE` varE arg
+
+        toFieldName field = [|E.text|] `appE`
+                            ([|T.pack|] `appE` fieldLabelExp opts field)
+
+    match (conP conName $ map varP args)
+          ( normalB
+          $ if multiCons
+            then case sumEncoding opts of
+                   TwoElemArray -> array $
+                     encStr opts conName <%> [|fromEncoding|] `appE` exp
+                   TaggedObject{tagFieldName} -> object $
+                     ([|E.text (T.pack tagFieldName)|] <:>
+                      encStr opts conName) <%>
+                     objBody
+                   ObjectWithSingleField -> object $
+                     encStr opts conName <:> [|fromEncoding|] `appE` exp
+            else exp
+          ) []
+
+-- Infix constructors.
+argsToEncoding opts multiCons (InfixC _ conName _) = do
+    al <- newName "argL"
+    ar <- newName "argR"
+    match (infixP (varP al) conName (varP ar))
+          ( normalB
+          $ sumToEncoding opts multiCons conName
+          $ [|toEncoding|] `appE` listE [ [|toJSON|] `appE` varE a
+                                        | a <- [al,ar]
+                                        ]
+          )
+          []
+-- Existentially quantified constructors.
+argsToEncoding opts multiCons (ForallC _ _ con) =
+    argsToEncoding opts multiCons con
+>>>>>>> upstream/master
 
 
 --------------------------------------------------------------------------------
 -- FromJSON
 --------------------------------------------------------------------------------
 
+<<<<<<< HEAD
 -- | Generates a 'FromJSON' instance declaration for the given data type.
+=======
+-- | Generates a 'FromJSON' instance declaration for the given data type or
+-- data family instance constructor.
+>>>>>>> upstream/master
 deriveFromJSON :: Options
                -- ^ Encoding options.
                -> Name
@@ -364,6 +733,7 @@ deriveFromJSON :: Options
                -- declaration.
                -> Q [Dec]
 deriveFromJSON opts name =
+<<<<<<< HEAD
     withType name $ \tvbs cons -> fmap (:[]) $ fromCons tvbs cons
   where
     fromCons :: [TyVarBndr] -> [Con] -> Q Dec
@@ -373,21 +743,44 @@ deriveFromJSON opts name =
                   [ funD 'parseJSON
                          [ clause []
                                   (normalB $ consFromJSON name opts cons)
+=======
+    withType name $ \name' tvbs cons mbTys -> fmap (:[]) $ fromCons name' tvbs cons mbTys
+  where
+    fromCons :: Name -> [TyVarBndr] -> [Con] -> Maybe [Type] -> Q Dec
+    fromCons name' tvbs cons mbTys =
+        instanceD instanceCxt
+                  instanceType
+                  [ funD 'parseJSON
+                         [ clause []
+                                  (normalB $ consFromJSON name' opts cons)
+>>>>>>> upstream/master
                                   []
                          ]
                   ]
       where
+<<<<<<< HEAD
         classType = conT ''FromJSON
         typeNames = map tvbName tvbs
         instanceType = foldl' appT (conT name) $ map varT typeNames
 
 -- | Generates a lambda expression which parses the JSON encoding of the given
 -- data type.
+=======
+        (instanceCxt, instanceType) =
+            buildTypeInstance name' ''FromJSON tvbs mbTys
+
+-- | Generates a lambda expression which parses the JSON encoding of the given
+-- data type or data family instance constructor.
+>>>>>>> upstream/master
 mkParseJSON :: Options -- ^ Encoding options.
             -> Name -- ^ Name of the encoded type.
             -> Q Exp
 mkParseJSON opts name =
+<<<<<<< HEAD
     withType name (\_ cons -> consFromJSON name opts cons)
+=======
+    withType name (\name' _ cons _ -> consFromJSON name' opts cons)
+>>>>>>> upstream/master
 
 -- | Helper function used by both 'deriveFromJSON' and 'mkParseJSON'. Generates
 -- code to parse the JSON encoding of a number of constructors. All constructors
@@ -664,7 +1057,13 @@ parseArgs tName _ (NormalC conName ts) (Right valName) =
 -- Records.
 parseArgs tName opts (RecC conName ts) (Left (_, obj)) =
     parseRecord opts tName conName ts obj
+<<<<<<< HEAD
 parseArgs tName opts (RecC conName ts) (Right valName) = do
+=======
+parseArgs tName opts (RecC conName ts) (Right valName) = case (unwrapUnaryRecords opts,ts) of
+  (True,[(_,st,ty)])-> parseArgs tName opts (NormalC conName [(st,ty)]) (Right valName)
+  _ -> do
+>>>>>>> upstream/master
   obj <- newName "recObj"
   caseE (varE valName)
     [ match (conP 'Object [varP obj]) (normalB $ parseRecord opts tName conName ts obj) []
@@ -755,7 +1154,11 @@ instance (FromJSON a) => LookupField a where
           Just v  -> parseJSON v
 
 instance (FromJSON a) => LookupField (Maybe a) where
+<<<<<<< HEAD
     lookupField _ _ = (.:?)
+=======
+    lookupField _ _ obj key = join <$> obj .:? key
+>>>>>>> upstream/master
 
 unknownFieldFail :: String -> String -> String -> Parser fail
 unknownFieldFail tName rec key =
@@ -802,7 +1205,11 @@ conNotFoundFailTaggedObject t cs o =
                   t (intercalate ", " cs) o
 
 parseTypeMismatch' :: String -> String -> String -> String -> Parser fail
+<<<<<<< HEAD
 parseTypeMismatch' tName conName expected actual =
+=======
+parseTypeMismatch' conName tName expected actual =
+>>>>>>> upstream/master
     fail $ printf "When parsing the constructor %s of type %s expected %s but got %s."
                   conName tName expected actual
 
@@ -813,6 +1220,7 @@ parseTypeMismatch' tName conName expected actual =
 
 -- | Boilerplate for top level splices.
 --
+<<<<<<< HEAD
 -- The given 'Name' must be from a type constructor. Furthermore, the
 -- type constructor must be either a data type or a newtype. Any other
 -- value will result in an exception.
@@ -821,6 +1229,21 @@ withType :: Name
          -- ^ Function that generates the actual code. Will be applied
          -- to the type variable binders and constructors extracted
          -- from the given 'Name'.
+=======
+-- The given 'Name' must meet one of two criteria:
+--
+-- 1. It must be the name of a type constructor of a plain data type or newtype.
+-- 2. It must be the name of a data family instance or newtype instance constructor.
+
+-- Any other value will result in an exception.
+withType :: Name
+         -> (Name -> [TyVarBndr] -> [Con] -> Maybe [Type] -> Q a)
+         -- ^ Function that generates the actual code. Will be applied
+         -- to the datatype/data family 'Name', type variable binders and
+         -- constructors extracted from the given 'Name'. If the 'Name' is
+         -- from a data family instance constructor, it will also have its
+         -- instantiated types; otherwise, it will be 'Nothing'.
+>>>>>>> upstream/master
          -> Q a
          -- ^ Resulting value in the 'Q'uasi monad.
 withType name f = do
@@ -828,11 +1251,146 @@ withType name f = do
     case info of
       TyConI dec ->
         case dec of
+<<<<<<< HEAD
           DataD    _ _ tvbs cons _ -> f tvbs cons
           NewtypeD _ _ tvbs con  _ -> f tvbs [con]
           other -> error $ "Data.Aeson.TH.withType: Unsupported type: "
                           ++ show other
       _ -> error "Data.Aeson.TH.withType: I need the name of a type."
+=======
+          DataD    _ _ tvbs cons _ -> f name tvbs cons Nothing
+          NewtypeD _ _ tvbs con  _ -> f name tvbs [con] Nothing
+          other -> error $ ns ++ "Unsupported type: " ++ show other
+#if MIN_VERSION_template_haskell(2,11,0)
+      DataConI _ _ parentName   -> do
+#else
+      DataConI _ _ parentName _ -> do
+#endif
+        parentInfo <- reify parentName
+        case parentInfo of
+#if MIN_VERSION_template_haskell(2,11,0)
+          FamilyI (DataFamilyD _ tvbs _) decs ->
+#else
+          FamilyI (FamilyD DataFam _ tvbs _) decs ->
+#endif
+            let instDec = flip find decs $ \dec -> case dec of
+                  DataInstD    _ _ _ cons _ -> any ((name ==) . getConName) cons
+                  NewtypeInstD _ _ _ con  _ -> name == getConName con
+                  _ -> error $ ns ++ "Must be a data or newtype instance."
+             in case instDec of
+                  Just (DataInstD    _ _ instTys cons _)
+                    -> f parentName tvbs cons $ Just instTys
+                  Just (NewtypeInstD _ _ instTys con  _)
+                    -> f parentName tvbs [con] $ Just instTys
+                  _ -> error $ ns ++
+                    "Could not find data or newtype instance constructor."
+          _ -> error $ ns ++ "Data constructor " ++ show name ++
+            " is not from a data family instance constructor."
+#if MIN_VERSION_template_haskell(2,11,0)
+      FamilyI DataFamilyD{} _ ->
+#else
+      FamilyI (FamilyD DataFam _ _ _) _ ->
+#endif
+        error $ ns ++
+          "Cannot use a data family name. Use a data family instance constructor instead."
+      _ -> error $ ns ++ "I need the name of a plain data type constructor, "
+                      ++ "or a data family instance constructor."
+  where
+    ns :: String
+    ns = "Data.Aeson.TH.withType: "
+
+-- | Infer the context and instance head needed for a FromJSON or ToJSON instance.
+buildTypeInstance :: Name
+                  -- ^ The type constructor or data family name
+                  -> Name
+                  -- ^ The typeclass name ('ToJSON' or 'FromJSON')
+                  -> [TyVarBndr]
+                  -- ^ The type variables from the data type/data family declaration
+                  -> Maybe [Type]
+                  -- ^ 'Just' the types used to instantiate a data family instance,
+                  -- or 'Nothing' if it's a plain data type
+                  -> (Q Cxt, Q Type)
+                  -- ^ The resulting 'Cxt' and 'Type' to use in a class instance
+-- Plain data type/newtype case
+buildTypeInstance tyConName constraint tvbs Nothing =
+    (applyCon constraint typeNames, conT constraint `appT` instanceType)
+  where
+    typeNames :: [Name]
+    typeNames = map tvbName tvbs
+
+    instanceType :: Q Type
+    instanceType = applyTyCon tyConName $ map varT typeNames
+-- Data family instance case
+buildTypeInstance dataFamName constraint tvbs (Just instTysAndKinds) =
+    (applyCon constraint lhsTvbNames, conT constraint `appT` instanceType)
+  where
+    -- We need to make sure that type variables in the instance head which have
+    -- constraints aren't poly-kinded, e.g.,
+    --
+    -- @
+    -- instance ToJSON a => ToJSON (Foo (a :: k)) where
+    -- @
+    --
+    -- To do this, we remove every kind ascription (i.e., strip off every 'SigT').
+    instanceType :: Q Type
+    instanceType = applyTyCon dataFamName $ map (return . unSigT) rhsTypes
+
+    -- We need to mindful of an old GHC bug which causes kind variables appear in
+    -- @instTysAndKinds@ (as the name suggests) if (1) @PolyKinds@ is enabled, and
+    -- (2) either GHC 7.6 or 7.8 is being used (for more info, see
+    -- https://ghc.haskell.org/trac/ghc/ticket/9692).
+    --
+    -- Since Template Haskell doesn't seem to have a mechanism for detecting which
+    -- language extensions are enabled, we do the next-best thing by counting
+    -- the number of distinct kind variables in the data family declaration, and
+    -- then dropping that number of entries from @instTysAndKinds@
+    instTypes :: [Type]
+    instTypes =
+#if __GLASGOW_HASKELL__ >= 710 || !(MIN_VERSION_template_haskell(2,8,0))
+        instTysAndKinds
+#else
+        drop (Set.size . Set.unions $ map (distinctKindVars . tvbKind) tvbs)
+             instTysAndKinds
+#endif
+
+    lhsTvbNames :: [Name]
+    lhsTvbNames = map (tvbName . uncurry replaceTyVarName)
+                . filter (isTyVar . snd)
+                $ zip tvbs rhsTypes
+
+    -- In GHC 7.8, only the @Type@s up to the rightmost non-eta-reduced type variable
+    -- in @instTypes@ are provided (as a result of this bug:
+    -- https://ghc.haskell.org/trac/ghc/ticket/9692). To work around this, we borrow
+    -- some type variables from the data family instance declaration.
+    rhsTypes :: [Type]
+    rhsTypes =
+#if __GLASGOW_HASKELL__ >= 708 && __GLASGOW_HASKELL__ < 710
+            instTypes ++ map tvbToType
+                             (drop (length instTypes)
+                                   tvbs)
+#else
+            instTypes
+#endif
+
+#if MIN_VERSION_template_haskell(2,8,0) && __GLASGOW_HASKELL__ < 710
+distinctKindVars :: Kind -> Set.Set Name
+distinctKindVars (AppT k1 k2) = distinctKindVars k1 `Set.union` distinctKindVars k2
+distinctKindVars (SigT k _)   = distinctKindVars k
+distinctKindVars (VarT k)     = Set.singleton k
+distinctKindVars _            = Set.empty
+
+-- | Extracts the kind from a type variable binder.
+tvbKind :: TyVarBndr -> Kind
+tvbKind (PlainTV  _  ) = starK
+tvbKind (KindedTV _ k) = k
+#endif
+
+#if __GLASGOW_HASKELL__ >= 708 && __GLASGOW_HASKELL__ < 710
+tvbToType :: TyVarBndr -> Type
+tvbToType (PlainTV n)    = VarT n
+tvbToType (KindedTV n k) = SigT (VarT n) k
+#endif
+>>>>>>> upstream/master
 
 -- | Extracts the name from a constructor.
 getConName :: Con -> Name
@@ -846,6 +1404,31 @@ tvbName :: TyVarBndr -> Name
 tvbName (PlainTV  name  ) = name
 tvbName (KindedTV name _) = name
 
+<<<<<<< HEAD
+=======
+-- | Replace the Name of a TyVarBndr with one from a Type (if the Type has a Name).
+replaceTyVarName :: TyVarBndr -> Type -> TyVarBndr
+replaceTyVarName tvb            (SigT t _) = replaceTyVarName tvb t
+replaceTyVarName (PlainTV  _)   (VarT n)   = PlainTV  n
+replaceTyVarName (KindedTV _ k) (VarT n)   = KindedTV n k
+replaceTyVarName tvb            _          = tvb
+
+-- | Fully applies a type constructor to its type variables.
+applyTyCon :: Name -> [Q Type] -> Q Type
+applyTyCon = foldl' appT . conT
+
+-- | Is the given type a variable?
+isTyVar :: Type -> Bool
+isTyVar (VarT _)   = True
+isTyVar (SigT t _) = isTyVar t
+isTyVar _          = False
+
+-- | Peel off a kind signature from a Type (if it has one).
+unSigT :: Type -> Type
+unSigT (SigT t _) = t
+unSigT t          = t
+
+>>>>>>> upstream/master
 -- | Makes a string literal expression from a constructor's name.
 conNameExp :: Options -> Con -> Q Exp
 conNameExp opts = litE

@@ -1,8 +1,13 @@
+<<<<<<< HEAD
 {-# Language CPP, OverloadedStrings, RecordWildCards, StandaloneDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 #if __GLASGOW_HASKELL__ < 702
 {-# OPTIONS_GHC -fno-warn-missing-methods #-}
 #endif
+=======
+{-# Language OverloadedStrings, RecordWildCards, StandaloneDeriving #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+>>>>>>> upstream/master
 
 module Instances where
 
@@ -11,8 +16,15 @@ import Data.Function (on)
 import Control.Monad
 import Test.QuickCheck (Arbitrary(..), Gen, choose, oneof, elements)
 import Data.Time.Clock (DiffTime, UTCTime(..), picosecondsToDiffTime)
+<<<<<<< HEAD
 import Data.Time (ZonedTime(..), LocalTime(..), TimeZone(..),
                   hoursToTimeZone, Day(..), TimeOfDay(..))
+=======
+import Data.Fixed (Pico)
+import Data.Time (ZonedTime(..), LocalTime(..), TimeZone(..),
+                  hoursToTimeZone, Day(..), TimeOfDay(..),
+                  NominalDiffTime)
+>>>>>>> upstream/master
 import qualified Data.Text as T
 import qualified Data.Map as Map
 import Data.Text (Text)
@@ -52,6 +64,12 @@ instance Arbitrary DotNetTime where
 instance Arbitrary ZonedTime where
     arbitrary = liftM2 ZonedTime arbitrary arbitrary
 
+<<<<<<< HEAD
+=======
+instance Arbitrary NominalDiffTime where
+    arbitrary = realToFrac <$> (arbitrary :: Gen Pico)
+
+>>>>>>> upstream/master
 deriving instance Eq ZonedTime
 
 -- Compare equality to within a millisecond, allowing for rounding
@@ -145,3 +163,12 @@ instance Arbitrary a => Arbitrary (SomeType a) where
                       , Product <$> arbitrary <*> arbitrary <*> arbitrary
                       , Record  <$> arbitrary <*> arbitrary <*> arbitrary
                       ]
+<<<<<<< HEAD
+=======
+
+instance ApproxEq Char where
+    (=~) = (==)
+
+instance (ApproxEq a) => ApproxEq [a] where
+    a =~ b = length a == length b && all (uncurry (=~)) (zip a b)
+>>>>>>> upstream/master

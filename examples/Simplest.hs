@@ -1,7 +1,15 @@
+<<<<<<< HEAD
 {-# LANGUAGE OverloadedStrings #-}
 
 import Control.Applicative ((<$>), (<*>), empty)
 import Data.Aeson
+=======
+{-# LANGUAGE OverloadedStrings, RecordWildCards #-}
+
+import Control.Applicative ((<$>), (<*>), empty)
+import Data.Aeson
+import Data.Monoid
+>>>>>>> upstream/master
 import qualified Data.ByteString.Lazy.Char8 as BL
 
 data Coord = Coord { x :: Double, y :: Double }
@@ -13,6 +21,13 @@ instance ToJSON Coord where
   toJSON (Coord xV yV) = object [ "x" .= xV,
                                   "y" .= yV ]
 
+<<<<<<< HEAD
+=======
+  toEncoding Coord{..} = pairs $
+    "x" .= x <>
+    "y" .= y
+
+>>>>>>> upstream/master
 -- A FromJSON instance allows us to decode a value from JSON.  This
 -- should match the format used by the ToJSON instance.
 

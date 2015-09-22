@@ -1,16 +1,26 @@
+<<<<<<< HEAD
 {-# LANGUAGE CPP, DeriveDataTypeable, GeneralizedNewtypeDeriving #-}
 #ifdef GHC_GENERICS
 {-# LANGUAGE DeriveGeneric, StandaloneDeriving #-}
 #endif
+=======
+{-# LANGUAGE DeriveDataTypeable, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveGeneric, StandaloneDeriving #-}
+>>>>>>> upstream/master
 
 module Types where
 
 import qualified Data.Map as Map
 import Data.Data
 import Data.Text
+<<<<<<< HEAD
 #ifdef GHC_GENERICS
 import GHC.Generics
 #endif
+=======
+import GHC.Generics
+import Test.QuickCheck (Property, counterexample)
+>>>>>>> upstream/master
 
 data Foo = Foo {
       fooInt :: Int
@@ -57,7 +67,10 @@ data SomeType a = Nullary
                          , testThree :: Maybe a
                          } deriving (Eq, Show)
 
+<<<<<<< HEAD
 #ifdef GHC_GENERICS
+=======
+>>>>>>> upstream/master
 deriving instance Generic Foo
 deriving instance Generic UFoo
 deriving instance Generic OneConstructor
@@ -67,4 +80,11 @@ deriving instance Generic (Sum4 a b c d)
 deriving instance Generic (Approx a)
 deriving instance Generic Nullary
 deriving instance Generic (SomeType a)
+<<<<<<< HEAD
 #endif
+=======
+
+failure :: Show a => String -> String -> a -> Property
+failure func msg v = counterexample
+                     (func ++ " failed: " ++ msg ++ ", " ++ show v) False
+>>>>>>> upstream/master

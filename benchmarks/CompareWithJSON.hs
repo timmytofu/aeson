@@ -34,6 +34,14 @@ decodeA s = case A.decode s of
               Just v -> v
               Nothing -> error "fail to parse via Aeson"
 
+<<<<<<< HEAD
+=======
+decodeA' :: BL.ByteString -> A.Value
+decodeA' s = case A.decode' s of
+               Just v -> v
+               Nothing -> error "fail to parse via Aeson"
+
+>>>>>>> upstream/master
 encodeJ :: J.JSValue -> BL.ByteString
 encodeJ = toLazyByteString . fromString . J.encode
 
@@ -54,7 +62,12 @@ main = do
   defaultMain [
       bgroup "decode" [
         bgroup "en" [
+<<<<<<< HEAD
           bench "aeson" $ nf decodeA enA
+=======
+          bench "aeson/lazy" $ nf decodeA enA
+        , bench "aeson/strict" $ nf decodeA' enA
+>>>>>>> upstream/master
         , bench "json"  $ nf decodeJ enJ
         ]
       , bgroup "jp" [
