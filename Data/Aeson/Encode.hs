@@ -2,7 +2,7 @@
 
 -- |
 -- Module:      Data.Aeson.Encode
--- Copyright:   (c) 2012 Bryan O'Sullivan
+-- Copyright:   (c) 2012-2015 Bryan O'Sullivan
 --              (c) 2011 MailRank, Inc.
 -- License:     Apache
 -- Maintainer:  Bryan O'Sullivan <bos@serpentine.com>
@@ -20,28 +20,31 @@ module Data.Aeson.Encode
     ( encode
 
     -- * Encoding to Builders
-    , encodeToByteStringBuilder
+    , encodeToBuilder
     , encodeToTextBuilder
 
     -- * Deprecated
     , fromValue
     ) where
 
+import Data.Aeson.Encode.Builder (encodeToBuilder)
+import Data.Aeson.Encode.Functions (encode)
 import Data.Aeson.Types (Value(..))
-import Data.Monoid (mappend)
-import Data.Scientific (Scientific, coefficient, base10Exponent)
+import Data.Monoid ((<>))
+import Data.Scientific (FPFormat(..), Scientific, base10Exponent)
 import Data.Text.Lazy.Builder
-import Data.Text.Lazy.Builder.Int (decimal)
-import Data.Text.Lazy.Builder.Scientific (scientificBuilder)
+import Data.Text.Lazy.Builder.Scientific (formatScientificBuilder)
 import Numeric (showHex)
 import qualified Data.HashMap.Strict as H
 import qualified Data.Text as T
 import qualified Data.Vector as V
 
-import Data.Aeson.Encode.ByteString (encode, encodeToByteStringBuilder)
-
--- | Encode a JSON 'Value' to a 'Builder', which can be embedded efficiently
--- in a text-based protocol.
+-- | Encode a JSON 'Value' to a "Data.Text" 'Builder', which can be
+-- embedded efficiently in a text-based protocol.
+--
+-- If you are going to immediately encode straight to a
+-- 'L.ByteString', it is more efficient to use 'encodeToBuilder'
+-- instead.
 encodeToTextBuilder :: Value -> Builder
 encodeToTextBuilder =
     go
@@ -77,8 +80,6 @@ string s = {-# SCC "string" #-} singleton '"' <> quote s <> singleton '"'
         where (h,t) = {-# SCC "break" #-} T.break isEscape q
     isEscape c = c == '\"' ||
                  c == '\\' ||
-                 c == '<'  ||
-                 c == '>'  ||
                  c < '\x20'
     escape '\"' = "\\\""
     escape '\\' = "\\\\"
@@ -86,24 +87,14 @@ string s = {-# SCC "string" #-} singleton '"' <> quote s <> singleton '"'
     escape '\r' = "\\r"
     escape '\t' = "\\t"
 
-    -- The following prevents untrusted JSON strings containing </script> or -->
-    -- from causing an XSS vulnerability:
-    escape '<'  = "\\u003c"
-    escape '>'  = "\\u003e"
-
     escape c
         | c < '\x20' = fromString $ "\\u" ++ replicate (4 - length h) '0' ++ h
         | otherwise  = singleton c
         where h = showHex (fromEnum c) ""
 
 fromScientific :: Scientific -> Builder
-fromScientific s
-    | e < 0     = scientificBuilder s
-    | otherwise = decimal (coefficient s * 10 ^ e)
+fromScientific s = formatScientificBuilder format prec s
   where
-    e = base10Exponent s
-
-(<>) :: Builder -> Builder -> Builder
-(<>) = mappend
-{-# INLINE (<>) #-}
-infixr 6 <>
+    (format, prec)
+      | base10Exponent s < 0 = (Generic, Nothing)
+      | otherwise            = (Fixed,   Just 0)

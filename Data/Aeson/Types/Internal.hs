@@ -1,8 +1,9 @@
-{-# LANGUAGE DeriveDataTypeable, GeneralizedNewtypeDeriving, Rank2Types #-}
+{-# LANGUAGE DeriveDataTypeable, GeneralizedNewtypeDeriving, Rank2Types,
+    RecordWildCards #-}
 
 -- |
 -- Module:      Data.Aeson.Types.Internal
--- Copyright:   (c) 2011, 2012 Bryan O'Sullivan
+-- Copyright:   (c) 2011-2015 Bryan O'Sullivan
 --              (c) 2011 MailRank, Inc.
 -- License:     Apache
 -- Maintainer:  Bryan O'Sullivan <bos@serpentine.com>
@@ -15,6 +16,8 @@ module Data.Aeson.Types.Internal
     (
     -- * Core JSON types
       Value(..)
+    , Encoding(..)
+    , Series(..)
     , Array
     , emptyArray, isEmptyArray
     , Pair
@@ -23,10 +26,16 @@ module Data.Aeson.Types.Internal
     -- * Type conversion
     , Parser
     , Result(..)
+    , IResult(..)
+    , JSONPathElement(..)
+    , JSONPath
+    , iparse
     , parse
     , parseEither
     , parseMaybe
     , modifyFailure
+    , formatError
+    , (<?>)
     -- * Constructors and accessors
     , object
 
@@ -38,56 +47,116 @@ module Data.Aeson.Types.Internal
 
     -- * Used for changing CamelCase names into something else.
     , camelTo
+    , camelTo2
 
     -- * Other types
     , DotNetTime(..)
     ) where
 
-
 import Control.Applicative
-import Control.Monad
 import Control.DeepSeq (NFData(..))
-import Data.Char (toLower, isUpper)
-import Data.Scientific (Scientific)
-import Data.Hashable (Hashable(..))
+import Control.Monad (MonadPlus(..), ap)
+import Data.ByteString.Builder (Builder, char7, toLazyByteString)
+import Data.Char (isLower, isUpper, toLower)
 import Data.Data (Data)
+import Data.Foldable (Foldable(..))
 import Data.HashMap.Strict (HashMap)
-import Data.Monoid (Monoid(..))
+import Data.Hashable (Hashable(..))
+import Data.Monoid (Monoid(..), (<>))
+import Data.Scientific (Scientific)
 import Data.String (IsString(..))
-import Data.Text (Text, pack)
+import Data.Text (Text, pack, unpack)
 import Data.Time (UTCTime)
 import Data.Time.Format (FormatTime)
+import Data.Traversable (Traversable(..))
 import Data.Typeable (Typeable)
 import Data.Vector (Vector)
 import qualified Data.HashMap.Strict as H
 import qualified Data.Vector as V
+
+-- | Elements of a JSON path used to describe the location of an
+-- error.
+data JSONPathElement = Key Text
+                       -- ^ JSON path element of a key into an object,
+                       -- \"object.key\".
+                     | Index {-# UNPACK #-} !Int
+                       -- ^ JSON path element of an index into an
+                       -- array, \"array[index]\".
+                       deriving (Eq, Show, Typeable)
+type JSONPath = [JSONPathElement]
+
+-- | The internal result of running a 'Parser'.
+data IResult a = IError JSONPath String
+               | ISuccess a
+               deriving (Eq, Show, Typeable)
 
 -- | The result of running a 'Parser'.
 data Result a = Error String
               | Success a
                 deriving (Eq, Show, Typeable)
 
+instance NFData JSONPathElement where
+  rnf (Key t)   = rnf t
+  rnf (Index i) = rnf i
+
+instance (NFData a) => NFData (IResult a) where
+    rnf (ISuccess a)      = rnf a
+    rnf (IError path err) = rnf path `seq` rnf err
+
 instance (NFData a) => NFData (Result a) where
     rnf (Success a) = rnf a
     rnf (Error err) = rnf err
+
+instance Functor IResult where
+    fmap f (ISuccess a)      = ISuccess (f a)
+    fmap _ (IError path err) = IError path err
+    {-# INLINE fmap #-}
 
 instance Functor Result where
     fmap f (Success a) = Success (f a)
     fmap _ (Error err) = Error err
     {-# INLINE fmap #-}
 
+instance Monad IResult where
+    return = ISuccess
+    {-# INLINE return #-}
+
+    ISuccess a      >>= k = k a
+    IError path err >>= _ = IError path err
+    {-# INLINE (>>=) #-}
+
+    fail err = IError [] err
+    {-# INLINE fail #-}
+
 instance Monad Result where
     return = Success
     {-# INLINE return #-}
+
     Success a >>= k = k a
     Error err >>= _ = Error err
     {-# INLINE (>>=) #-}
+
+    fail err = Error err
+    {-# INLINE fail #-}
+
+instance Applicative IResult where
+    pure  = return
+    {-# INLINE pure #-}
+    (<*>) = ap
+    {-# INLINE (<*>) #-}
 
 instance Applicative Result where
     pure  = return
     {-# INLINE pure #-}
     (<*>) = ap
     {-# INLINE (<*>) #-}
+
+instance MonadPlus IResult where
+    mzero = fail "mzero"
+    {-# INLINE mzero #-}
+    mplus a@(ISuccess _) _ = a
+    mplus _ b             = b
+    {-# INLINE mplus #-}
 
 instance MonadPlus Result where
     mzero = fail "mzero"
@@ -96,11 +165,23 @@ instance MonadPlus Result where
     mplus _ b             = b
     {-# INLINE mplus #-}
 
+instance Alternative IResult where
+    empty = mzero
+    {-# INLINE empty #-}
+    (<|>) = mplus
+    {-# INLINE (<|>) #-}
+
 instance Alternative Result where
     empty = mzero
     {-# INLINE empty #-}
     (<|>) = mplus
     {-# INLINE (<|>) #-}
+
+instance Monoid (IResult a) where
+    mempty  = fail "mempty"
+    {-# INLINE mempty #-}
+    mappend = mplus
+    {-# INLINE mappend #-}
 
 instance Monoid (Result a) where
     mempty  = fail "mempty"
@@ -108,31 +189,60 @@ instance Monoid (Result a) where
     mappend = mplus
     {-# INLINE mappend #-}
 
+instance Foldable IResult where
+    foldMap _ (IError _ _) = mempty
+    foldMap f (ISuccess y) = f y
+    {-# INLINE foldMap #-}
+
+    foldr _ z (IError _ _) = z
+    foldr f z (ISuccess y) = f y z
+    {-# INLINE foldr #-}
+
+instance Foldable Result where
+    foldMap _ (Error _)   = mempty
+    foldMap f (Success y) = f y
+    {-# INLINE foldMap #-}
+
+    foldr _ z (Error _)   = z
+    foldr f z (Success y) = f y z
+    {-# INLINE foldr #-}
+
+instance Traversable IResult where
+    traverse _ (IError path err) = pure (IError path err)
+    traverse f (ISuccess a)      = ISuccess <$> f a
+    {-# INLINE traverse #-}
+
+instance Traversable Result where
+    traverse _ (Error err) = pure (Error err)
+    traverse f (Success a) = Success <$> f a
+    {-# INLINE traverse #-}
+
 -- | Failure continuation.
-type Failure f r   = String -> f r
+type Failure f r   = JSONPath -> String -> f r
 -- | Success continuation.
 type Success a f r = a -> f r
 
--- | A continuation-based parser type.
+-- | A JSON parser.
 newtype Parser a = Parser {
       runParser :: forall f r.
-                   Failure f r
+                   JSONPath
+                -> Failure f r
                 -> Success a f r
                 -> f r
     }
 
 instance Monad Parser where
-    m >>= g = Parser $ \kf ks -> let ks' a = runParser (g a) kf ks
-                                 in runParser m kf ks'
+    m >>= g = Parser $ \path kf ks -> let ks' a = runParser (g a) path kf ks
+                                       in runParser m path kf ks'
     {-# INLINE (>>=) #-}
-    return a = Parser $ \_kf ks -> ks a
+    return a = Parser $ \_path _kf ks -> ks a
     {-# INLINE return #-}
-    fail msg = Parser $ \kf _ks -> kf msg
+    fail msg = Parser $ \path kf _ks -> kf (reverse path) msg
     {-# INLINE fail #-}
 
 instance Functor Parser where
-    fmap f m = Parser $ \kf ks -> let ks' a = ks (f a)
-                                  in runParser m kf ks'
+    fmap f m = Parser $ \path kf ks -> let ks' a = ks (f a)
+                                        in runParser m path kf ks'
     {-# INLINE fmap #-}
 
 instance Applicative Parser where
@@ -150,8 +260,8 @@ instance Alternative Parser where
 instance MonadPlus Parser where
     mzero = fail "mzero"
     {-# INLINE mzero #-}
-    mplus a b = Parser $ \kf ks -> let kf' _ = runParser b kf ks
-                                   in runParser a kf' ks
+    mplus a b = Parser $ \path kf ks -> let kf' _ _ = runParser b path kf ks
+                                         in runParser a path kf' ks
     {-# INLINE mplus #-}
 
 instance Monoid (Parser a) where
@@ -180,10 +290,42 @@ data Value = Object !Object
            | Number !Scientific
            | Bool !Bool
            | Null
-             deriving (Eq, Show, Typeable, Data)
+             deriving (Eq, Read, Show, Typeable, Data)
+
+-- | An encoding of a JSON value.
+newtype Encoding = Encoding {
+      fromEncoding :: Builder
+      -- ^ Acquire the underlying bytestring builder.
+    } deriving (Monoid)
+
+instance Show Encoding where
+    show (Encoding e) = show (toLazyByteString e)
+
+instance Eq Encoding where
+    Encoding a == Encoding b = toLazyByteString a == toLazyByteString b
+
+instance Ord Encoding where
+    compare (Encoding a) (Encoding b) =
+      compare (toLazyByteString a) (toLazyByteString b)
+
+-- | A series of values that, when encoded, should be separated by commas.
+data Series = Empty
+            | Value Encoding
+            deriving (Typeable)
+
+instance Monoid Series where
+    mempty              = Empty
+
+    mappend Empty a     = a
+    mappend (Value a) b =
+        Value $
+        a <> case b of
+               Empty   -> mempty
+               Value c -> Encoding (char7 ',') <> c
 
 -- | A newtype wrapper for 'UTCTime' that uses the same non-standard
--- serialization format as Microsoft .NET, whose @System.DateTime@
+-- serialization format as Microsoft .NET, whose
+-- <https://msdn.microsoft.com/en-us/library/system.datetime(v=vs.110).aspx System.DateTime>
 -- type is by default serialized to JSON as in the following example:
 --
 -- > /Date(1302547608878)/
@@ -191,6 +333,7 @@ data Value = Object !Object
 -- The number represents milliseconds since the Unix epoch.
 newtype DotNetTime = DotNetTime {
       fromDotNetTime :: UTCTime
+      -- ^ Acquire the underlying value.
     } deriving (Eq, Ord, Read, Show, Typeable, FormatTime)
 
 instance NFData Value where
@@ -234,18 +377,34 @@ emptyObject = Object H.empty
 
 -- | Run a 'Parser'.
 parse :: (a -> Parser b) -> a -> Result b
-parse m v = runParser (m v) Error Success
+parse m v = runParser (m v) [] (const Error) Success
 {-# INLINE parse #-}
+
+-- | Run a 'Parser'.
+iparse :: (a -> Parser b) -> a -> IResult b
+iparse m v = runParser (m v) [] IError ISuccess
+{-# INLINE iparse #-}
 
 -- | Run a 'Parser' with a 'Maybe' result type.
 parseMaybe :: (a -> Parser b) -> a -> Maybe b
-parseMaybe m v = runParser (m v) (const Nothing) Just
+parseMaybe m v = runParser (m v) [] (\_ _ -> Nothing) Just
 {-# INLINE parseMaybe #-}
 
--- | Run a 'Parser' with an 'Either' result type.
+-- | Run a 'Parser' with an 'Either' result type.  If the parse fails,
+-- the 'Left' payload will contain an error message.
 parseEither :: (a -> Parser b) -> a -> Either String b
-parseEither m v = runParser (m v) Left Right
+parseEither m v = runParser (m v) [] onError Right
+  where onError path msg = Left (formatError path msg)
 {-# INLINE parseEither #-}
+
+-- | Annotate an error message with a
+-- <http://goessner.net/articles/JsonPath/ JSONPath> error location.
+formatError :: JSONPath -> String -> String
+formatError path msg = "Error in " ++ (format "$" path) ++ ": " ++ msg
+  where
+    format pfx []                = pfx
+    format pfx (Index idx:parts) = format (pfx ++ "[" ++ show idx ++ "]") parts
+    format pfx (Key key:parts)   = format (pfx ++ "." ++ unpack key) parts
 
 -- | A key\/value pair for an 'Object'.
 type Pair = (Text, Value)
@@ -255,6 +414,24 @@ type Pair = (Text, Value)
 object :: [Pair] -> Value
 object = Object . H.fromList
 {-# INLINE object #-}
+
+-- | Add JSON Path context to a parser
+--
+-- When parsing complex structure it helps to annotate (sub)parsers
+-- with context so that if error occurs you can find it's location.
+--
+-- > withObject "Person" $ \o ->
+-- >   Person
+-- >     <$> o .: "name" <?> Key "name"
+-- >     <*> o .: "age"  <?> Key "age"
+--
+-- (except for standard methods like '(.:)' already do that)
+--
+-- After that in case of error you will get a JSON Path location of that error.
+--
+-- Since 0.9
+(<?>) :: Parser a -> JSONPathElement -> Parser a
+p <?> pathElem = Parser $ \path kf ks -> runParser p (pathElem:path) kf ks
 
 -- | If the inner @Parser@ failed, modify the failure message using the
 -- provided function. This allows you to create more descriptive error messages.
@@ -266,7 +443,7 @@ object = Object . H.fromList
 --
 -- Since 0.6.2.0
 modifyFailure :: (String -> String) -> Parser a -> Parser a
-modifyFailure f (Parser p) = Parser $ \kf -> p (kf . f)
+modifyFailure f (Parser p) = Parser $ \path kf ks -> p path (\p' m -> kf p' (f m)) ks
 
 --------------------------------------------------------------------------------
 -- Generic and TH encoding configuration
@@ -291,7 +468,22 @@ data Options = Options
       -- object will include those fields mapping to @null@.
     , sumEncoding :: SumEncoding
       -- ^ Specifies how to encode constructors of a sum datatype.
+    , unwrapUnaryRecords :: Bool
+      -- ^ Hide the field name when a record constructor has only one
+      -- field, like a newtype.
     }
+
+instance Show Options where
+  show Options{..} = "Options {" ++
+    "fieldLabelModifier =~ " ++
+      show (fieldLabelModifier "exampleField") ++ ", " ++
+    "constructorTagModifier =~ " ++
+      show (constructorTagModifier "ExampleConstructor") ++ ", " ++
+    "allNullaryToStringTag = " ++ show allNullaryToStringTag ++ ", " ++
+    "omitNothingFields = " ++ show omitNothingFields ++ ", " ++
+    "sumEncoding = " ++ show sumEncoding ++ ", " ++
+    "unwrapUnaryRecords = " ++ show unwrapUnaryRecords ++
+    "}"
 
 -- | Specifies how to encode constructors of a sum datatype.
 data SumEncoding =
@@ -317,6 +509,7 @@ data SumEncoding =
     -- first element is the tag of the constructor (modified by the
     -- 'constructorTagModifier') and the second element the encoded
     -- contents of the constructor.
+    deriving (Eq, Show)
 
 -- | Default encoding 'Options':
 --
@@ -336,6 +529,7 @@ defaultOptions = Options
                  , allNullaryToStringTag   = True
                  , omitNothingFields       = False
                  , sumEncoding             = defaultTaggedObject
+                 , unwrapUnaryRecords      = False
                  }
 
 -- | Default 'TaggedObject' 'SumEncoding' options:
@@ -361,6 +555,7 @@ defaultTaggedObject = TaggedObject
 --
 --   > camelTo '_' 'CamelCaseAPI' == "camel_case_api"
 camelTo :: Char -> String -> String
+{-# DEPRECATED camelTo "Use camelTo2 for better results" #-}
 camelTo c = lastWasCap True
   where
     lastWasCap :: Bool    -- ^ Previous was a capital letter
@@ -372,3 +567,16 @@ camelTo c = lastWasCap True
                                              then toLower x : lastWasCap True xs
                                              else c : toLower x : lastWasCap True xs
                                       else x : lastWasCap False xs
+
+-- | Better version of 'camelTo'. Example where it works better:
+--
+--   > camelTo '_' 'CamelAPICase' == "camel_apicase"
+--   > camelTo2 '_' 'CamelAPICase' == "camel_api_case"
+camelTo2 :: Char -> String -> String
+camelTo2 c = map toLower . go2 . go1
+    where go1 "" = ""
+          go1 (x:u:l:xs) | isUpper u && isLower l = x : c : u : l : go1 xs
+          go1 (x:xs) = x : go1 xs
+          go2 "" = ""
+          go2 (l:u:xs) | isLower l && isUpper u = l : c : u : go2 xs
+          go2 (x:xs) = x : go2 xs
